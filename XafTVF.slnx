@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="EasyTest" />
+    <BuildType Name="Release" />
+  </Configurations>
+  <Project Path="XafTVF/XafTVF.Blazor.Server/XafTVF.Blazor.Server.csproj" />
+  <Project Path="XafTVF/XafTVF.Module/XafTVF.Module.csproj" />
+  <Project Path="XafTVF/XafTVF.Win/XafTVF.Win.csproj" />
+</Solution>
