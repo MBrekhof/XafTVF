@@ -2,6 +2,17 @@
 
 A small DevExpress XAF sandbox that shows two end-to-end paths from a SQL **Table-Valued Function** into a XAF Blazor app — one as an in-app popup-driven result list, one as a predefined XtraReports report. Both paths share the same TVF, the same EF Core mapping, and the same non-persistent XAF DTO.
 
+## Why this exists
+
+A proof of concept. Aggregations over wide-fact tables (top-N by revenue, period-over-period rollups, ranked summaries) are often the slow spot in XAF apps when they're done the conventional way — load entities through `IObjectSpace`, then `LINQ → Sum/GroupBy` in C#. For the 60k-order seed in this spike, the difference between asking SQL Server to do the aggregation (which is what a TVF is *for*) and round-tripping every row to .NET is typically an order of magnitude or more, plus a much smaller working set and a much shorter UI wait. TVFs also keep the query reusable across UI, reports, and ad-hoc SQL.
+
+The catch is that XAF doesn't ship a turn-key story for "SQL-side aggregate → XAF UI". The canonical EF Core TVF pattern (`HasDbFunction` + `HasNoKey().ToFunction(...)`) is rejected by XAF's `DBUpdater` because XAF auto-registers every mapped entity as a XAF business class and demands a key. So the spike works out a path that *does* fit XAF: query via `Database.SqlQuery<TRow>($"...")` against an unmapped POCO, project rows into a non-persistent XAF DTO inside a `NonPersistentObjectSpace`, and surface them through either a regular ListView or a predefined XtraReport — both fed from the exact same TVF.
+
+What you get out the other end:
+- **Speed**: aggregation runs server-side; only the top-N rows cross the wire.
+- **Reuse**: one SQL function powers both the in-app result list and the report.
+- **XAF-native UX**: same nav, same toolbar, same drill-through pattern as the rest of the app.
+
 The full design notes live in [TVF_PLAN.md](./TVF_PLAN.md). This README is the orientation document.
 
 ![Architecture](./docs/architecture.png)
