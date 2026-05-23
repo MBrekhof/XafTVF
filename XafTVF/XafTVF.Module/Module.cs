@@ -38,6 +38,10 @@ namespace XafTVF.Module
             RequiredModuleTypes.Add(typeof(DevExpress.ExpressApp.ViewVariantsModule.ViewVariantsModule));
             DevExpress.ExpressApp.Security.SecurityModule.UsedExportedTypes = DevExpress.Persistent.Base.UsedExportedTypes.Custom;
             AdditionalExportedTypes.Add(typeof(DevExpress.Persistent.BaseImpl.EF.HCategory));
+            AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.Customer));
+            AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.Order));
+            AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.CustomerSummary));
+            AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.TopCustomersParams));
         }
         public override IEnumerable<ModuleUpdater> GetModuleUpdaters(IObjectSpace objectSpace, Version versionFromDB)
         {

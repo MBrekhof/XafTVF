@@ -23,6 +23,14 @@ namespace XafTVF.Module.BusinessObjects
         public DbSet<ReportDataV2> ReportDataV2 { get; set; }
         public DbSet<DashboardData> DashboardData { get; set; }
         public DbSet<HCategory> HCategories { get; set; }
+        public DbSet<Customer> Customers { get; set; }
+        public DbSet<Order> Orders { get; set; }
+
+        // Queries dbo.get_top_customers via Database.SqlQuery so CustomerSummaryRow
+        // stays out of the EF model (and out of XAF's business-class scan).
+        public IQueryable<CustomerSummaryRow> GetTopCustomers(int topN, DateTime since)
+            => Database.SqlQuery<CustomerSummaryRow>(
+                $"SELECT CustomerId, Name, Revenue, OrderCount FROM dbo.get_top_customers({topN}, {since})");
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -40,6 +48,11 @@ namespace XafTVF.Module.BusinessObjects
                 .HasMany(t => t.Aspects)
                 .WithOne(t => t.Owner)
                 .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<Order>().Property(p => p.Total).HasPrecision(18, 2);
+            // CustomerSummaryRow.Revenue precision is declared via [Column(TypeName=...)] on the
+            // property. We avoid Entity<CustomerSummaryRow>(...) here because touching the type
+            // via modelBuilder would promote it from "query type" (auto-registered by SqlQuery<T>)
+            // to a full entity, which then needs a key — and XAF would reject it.
         }
     }
 }

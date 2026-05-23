@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 CLAUDE.local.md
 .claude/settings.local.json
 
+
+# Playwright test artifacts (regenerated each run)
+test-artifacts/*.png

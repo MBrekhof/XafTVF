@@ -19,7 +19,7 @@ Work through these in order. Stop and report after each non-trivial step so the 
 1. **Add `Customer` + `Order` entities** in `XafTVF.Module/BusinessObjects/`. Include DbSets in `XafTVFEFCoreDbContext`, `HasPrecision(18,2)` on `Order.Total`, and `AdditionalExportedTypes` registration in `XafTVFModule`.
 2. **Run the migration** so the tables exist. **Do not run `dotnet ef migrations add` without asking the user first** — a PreToolUse hook will block it anyway.
 3. **Seed a few customers and orders** in `DatabaseUpdate/Updater.cs` (or by hand via the UI).
-4. **Add `CustomerSummaryRow`** (keyless EF row type) plus `HasDbFunction` + `ToFunction("get_top_customers")` mapping in `OnModelCreating`. Do **not** add it to `AdditionalExportedTypes`.
+4. **Add `CustomerSummaryRow`** with all properties `virtual` (SqlQuery<T> auto-registers it; the proxy rewriter requires virtual). No DbSet. No `modelBuilder.Entity<>()` call — touching it that way promotes it from query type to full entity needing a key and XAF rejects it. Use `[Column(TypeName = "decimal(18,2)")]` on `Revenue` instead of fluent `HasPrecision`. Add a `GetTopCustomers(int, DateTime)` method on the DbContext that returns `Database.SqlQuery<CustomerSummaryRow>($"... dbo.get_top_customers({topN}, {since})")`. **XAF-specific:** the canonical `HasDbFunction` + `HasNoKey()` pattern from TVF_PLAN.md §Step 3 is rejected by XAF's `DBUpdater` at startup — see the deviation note in TVF_PLAN.md §Step 3.
 5. **Create the TVF in the database** with raw SQL (`dbo.get_top_customers` — see TVF_PLAN.md §Step 2). EF migrations will not generate this.
 6. **Sanity-check** with `ctx.GetTopCustomers(10, DateTime.Today.AddYears(-1)).ToList()` from a controller breakpoint or temp test.
 7. **Add `CustomerSummary` DTO and `TopCustomersParams`** (both `[DomainComponent]` + `NonPersistentBaseObject`, all properties `virtual`). Register both in `AdditionalExportedTypes`.
@@ -29,9 +29,9 @@ Work through these in order. Stop and report after each non-trivial step so the 
 
 ## Non-obvious traps to repeat back
 
-- `CustomerSummaryRow` (EF row) is NOT XAF-visible — keep it out of `AdditionalExportedTypes`.
+- `CustomerSummaryRow` is queried via `Database.SqlQuery<T>` — not a XAF business class, not in `AdditionalExportedTypes`, no `DbSet<>`, no `modelBuilder.Entity<>()` call. EF will auto-register it as a query type, which is what we want; explicit registration via `Entity<>()` upgrades it to a full entity that XAF's `DBUpdater` will reject for missing a key.
 - `CustomerSummary` (DTO) is NOT an EF entity — do not add a `DbSet<CustomerSummary>`.
-- All DTO/param properties must be `virtual`.
-- Result view must be backed by `NonPersistentObjectSpace` — `EFCoreObjectSpace` cannot surface keyless rows.
+- All `CustomerSummary`, `TopCustomersParams`, and `CustomerSummaryRow` properties must be `virtual` (XAF change-tracking proxy + EF query-type proxy rewriter both demand it). Use `[Column(TypeName = ...)]` on `CustomerSummaryRow` decimal props instead of fluent `HasPrecision`.
+- Result view must be backed by `NonPersistentObjectSpace` — `EFCoreObjectSpace` cannot surface unmapped TVF rows.
 - Borrow the persistent ObjectSpace, cast to `EFCoreObjectSpace` to get the `DbContext`, run the query, then dispose before opening the result view.
-- `AsNoTracking()` on the TVF query.
+- No `AsNoTracking()` needed — `Database.SqlQuery<T>` results are not tracked.

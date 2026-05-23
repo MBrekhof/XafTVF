@@ -1,12 +1,15 @@
-﻿using DevExpress.Data.Filtering;
+﻿using Bogus;
+using DevExpress.Data.Filtering;
 using DevExpress.ExpressApp;
 using DevExpress.ExpressApp.EF;
+using DevExpress.ExpressApp.EFCore;
 using DevExpress.ExpressApp.Security;
 using DevExpress.ExpressApp.SystemModule;
 using DevExpress.ExpressApp.Updating;
 using DevExpress.Persistent.Base;
 using DevExpress.Persistent.BaseImpl.EF;
 using DevExpress.Persistent.BaseImpl.EF.PermissionPolicy;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using XafTVF.Module.BusinessObjects;
 
@@ -66,7 +69,89 @@ namespace XafTVF.Module.DatabaseUpdate
             }
 
             ObjectSpace.CommitChanges(); //This line persists created object(s).
+
+            EnsureTvfExists();
+            SeedCustomersAndOrders();
 #endif
+        }
+
+        private void EnsureTvfExists()
+        {
+            if (ObjectSpace is not EFCoreObjectSpace efOs) return;
+            var ctx = efOs.DbContext;
+
+            // GCRecord = 0 filter respects XAF's deferred deletion — soft-deleted rows would
+            // otherwise leak into the aggregate.
+            const string sql = @"
+CREATE OR ALTER FUNCTION dbo.get_top_customers
+(
+    @top_n int,
+    @since datetime2
+)
+RETURNS TABLE
+AS
+RETURN
+    SELECT TOP (@top_n)
+           c.ID         AS CustomerId,
+           c.Name       AS Name,
+           SUM(o.Total) AS Revenue,
+           COUNT(*)     AS OrderCount
+    FROM   dbo.Customers c
+    JOIN   dbo.Orders    o ON o.CustomerId = c.ID
+    WHERE  o.OrderDate >= @since
+      AND  c.GCRecord = 0
+      AND  o.GCRecord = 0
+    GROUP BY c.ID, c.Name
+    ORDER BY SUM(o.Total) DESC;";
+
+            ctx.Database.ExecuteSqlRaw(sql);
+        }
+
+        private void SeedCustomersAndOrders()
+        {
+            if (ObjectSpace is not EFCoreObjectSpace efOs) return;
+            var ctx = (XafTVFEFCoreDbContext)efOs.DbContext;
+
+            if (ctx.Customers.AsNoTracking().Any()) return;
+
+            Randomizer.Seed = new Random(42);
+
+            var customerFaker = new Faker<Customer>()
+                .CustomInstantiator(_ => ctx.CreateProxy<Customer>())
+                .RuleFor(c => c.Name, f => f.Company.CompanyName());
+
+            var customers = customerFaker.Generate(1000);
+
+            var orderFaker = new Faker<Order>()
+                .CustomInstantiator(_ => ctx.CreateProxy<Order>())
+                .RuleFor(o => o.OrderDate, f => f.Date.Past(3))
+                .RuleFor(o => o.Total, f => Math.Round(f.Random.Decimal(10m, 5000m), 2));
+
+            var rnd = new Random(42);
+            var orders = new List<Order>(capacity: 60000);
+            foreach (var c in customers)
+            {
+                int n = rnd.Next(20, 101); // 20..100 inclusive
+                for (int i = 0; i < n; i++)
+                {
+                    var o = orderFaker.Generate();
+                    o.Customer = c;
+                    orders.Add(o);
+                }
+            }
+
+            bool prevAutoDetect = ctx.ChangeTracker.AutoDetectChangesEnabled;
+            try
+            {
+                ctx.ChangeTracker.AutoDetectChangesEnabled = false;
+                ctx.Customers.AddRange(customers);
+                ctx.Orders.AddRange(orders);
+                ctx.SaveChanges();
+            }
+            finally
+            {
+                ctx.ChangeTracker.AutoDetectChangesEnabled = prevAutoDetect;
+            }
         }
         public override void UpdateDatabaseBeforeUpdateSchema()
         {

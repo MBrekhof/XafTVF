@@ -162,45 +162,57 @@ We'll create this manually (or via a migration) outside EF Core's model snapshot
 
 ## Step 3 — Map the TVF in `XafTVFEFCoreDbContext`
 
-The raw EF row type (`CustomerSummaryRow`) is **not** a XAF business class — keep it out of `AdditionalExportedTypes`.
+> **XAF deviation from the canonical EF Core TVF pattern.** The standard EF Core approach for TVFs is `modelBuilder.HasDbFunction(...)` + `modelBuilder.Entity<TRow>().HasNoKey().ToFunction(...)`. In a XAF EF Core project this fails at startup: XAF's `DbContextTypesInfoInitializer<TContext>` (wired by `[TypesInfoInitializer]` on the DbContext) scans every mapped entity and treats it as a XAF business class — and XAF business classes must have a key. The result is an `InvalidOperationException: No key property defined for the 'CustomerSummaryRow' class` from `DBUpdater.UpdateDataBase`, before any code path that would invoke the function. `HasNoKey()` is honored by EF Core but not by XAF's type-info layer. Use `Database.SqlQuery<TRow>($"...")` instead — `TRow` stays out of the EF model and out of XAF's scan.
 
 ```csharp
 // Inside XafTVFEFCoreDbContext
 
 public IQueryable<CustomerSummaryRow> GetTopCustomers(int topN, DateTime since)
-    => FromExpression(() => GetTopCustomers(topN, since));
+    => Database.SqlQuery<CustomerSummaryRow>(
+        $"SELECT CustomerId, Name, Revenue, OrderCount FROM dbo.get_top_customers({topN}, {since})");
+```
 
-protected override void OnModelCreating(ModelBuilder modelBuilder)
+The `FormattableString` parameters are still parameterized (EF Core converts `{topN}` and `{since}` to `@p0` / `@p1`), so this is safe against SQL injection.
+
+Don't add an `Entity<CustomerSummaryRow>(...)` call in `OnModelCreating`. Touching the type via `modelBuilder.Entity<>()` promotes it from EF's "query type" (auto-registered by `SqlQuery<T>` during model finalization, keyless and XAF-tolerant) to a full entity that requires a primary key — and XAF will then reject it. Use property-level attributes (`[Column(TypeName = ...)]`) instead of fluent precision config:
+
+```csharp
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace XafTVF.Module.BusinessObjects;
+
+// All properties virtual: SqlQuery<T> auto-registers T during model finalization, so the
+// change-tracking proxy rewriter requires virtual properties. [Column(TypeName = ...)] silences
+// the missing-precision warning without needing modelBuilder.Entity<T>().
+public class CustomerSummaryRow
 {
-    base.OnModelCreating(modelBuilder);
-    // ... existing setup ...
+    public virtual Guid CustomerId { get; set; }
+    public virtual string Name { get; set; } = string.Empty;
 
-    modelBuilder
-        .HasDbFunction(typeof(XafTVFEFCoreDbContext)
-            .GetMethod(nameof(GetTopCustomers))!)
-        .HasName("get_top_customers"); // or schema-qualified e.g. "dbo.get_top_customers"
+    [Column(TypeName = "decimal(18,2)")]
+    public virtual decimal Revenue { get; set; }
 
-    modelBuilder.Entity<CustomerSummaryRow>(b =>
-    {
-        b.HasNoKey();
-        b.ToFunction("get_top_customers");
-        b.Property(p => p.Revenue).HasPrecision(18, 2);
-    });
+    public virtual int OrderCount { get; set; }
 }
 ```
 
-The keyless row type:
+### What the canonical EF Core pattern would look like (for reference, **don't use in XAF**)
 
 ```csharp
-namespace XafTVF.Module.BusinessObjects;
+// In a non-XAF EF Core project this works; in XAF it throws "No key property defined":
+modelBuilder
+    .HasDbFunction(typeof(XafTVFEFCoreDbContext).GetMethod(nameof(GetTopCustomers))!)
+    .HasName("get_top_customers");
 
-public class CustomerSummaryRow
+modelBuilder.Entity<CustomerSummaryRow>(b =>
 {
-    public Guid CustomerId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public decimal Revenue { get; set; }
-    public int OrderCount { get; set; }
-}
+    b.HasNoKey();
+    b.ToFunction("get_top_customers");
+    b.Property(p => p.Revenue).HasPrecision(18, 2);
+});
+
+public IQueryable<CustomerSummaryRow> GetTopCustomers(int topN, DateTime since)
+    => FromExpression(() => GetTopCustomers(topN, since));
 ```
 
 ---
@@ -348,9 +360,8 @@ public class TopCustomersReportController : WindowController
         using var efOs = Application.CreateObjectSpace(typeof(Customer));
         var ctx = (XafTVFEFCoreDbContext)((EFCoreObjectSpace)efOs).DbContext;
 
-        return ctx.GetTopCustomers(topN, since)
-                  .AsNoTracking()
-                  .ToList();
+        // No AsNoTracking() needed — Database.SqlQuery<T> rows are not tracked.
+        return ctx.GetTopCustomers(topN, since).ToList();
     }
 
     private static CustomerSummary MapToDto(IObjectSpace os, CustomerSummaryRow r)
@@ -444,14 +455,15 @@ Promote `TopCustomersParams` to a real persistent entity. Popup flow unchanged. 
 
 ## Gotchas (XAF + EF Core 10)
 
-- **Don't** add `CustomerSummaryRow` (the keyless EF type) to `AdditionalExportedTypes` — only the DTO `CustomerSummary` is XAF-visible.
+- **Don't** add `CustomerSummaryRow` (the unmapped TVF row DTO) to `AdditionalExportedTypes` — only the XAF DTO `CustomerSummary` is XAF-visible.
 - **Don't** add `DbSet<CustomerSummary>` — `CustomerSummary` is a non-persistent DTO, not an EF entity.
+- **Don't** register `CustomerSummaryRow` in `OnModelCreating` (no `Entity<>().HasNoKey().ToFunction(...)`). XAF's `DbContextTypesInfoInitializer` scans every mapped entity and demands a key; `HasNoKey()` is ignored at the XAF layer. Query via `Database.SqlQuery<CustomerSummaryRow>($"...")` instead — see §Step 3.
 - All `CustomerSummary` properties must be `virtual` (XAF change-tracking proxy requirement).
-- Set decimal precision on `CustomerSummaryRow.Revenue` in `OnModelCreating` — otherwise silent truncation.
-- `AsNoTracking()` on the TVF query — rows are read-only anyway.
+- `CustomerSummaryRow` properties must be `virtual` — `SqlQuery<T>` auto-registers it as a query type during model finalization, and the change-tracking proxy rewriter scans every model type.
+- Decimal precision on `CustomerSummaryRow.Revenue`: use `[Column(TypeName = "decimal(18,2)")]` on the property — NOT `modelBuilder.Entity<CustomerSummaryRow>().Property(p => p.Revenue).HasPrecision(18, 2)`. The fluent form promotes the type from "query type" (keyless, XAF-tolerant) to a full entity that requires a key, and XAF rejects it.
+- `AsNoTracking()` is implicit on `Database.SqlQuery<T>` results — they aren't tracked entities. (If you ever go back to the `HasDbFunction` pattern in a non-XAF project, then `AsNoTracking()` matters.)
 - PostgreSQL function/column names are case-sensitive when quoted; keep the function name lower_snake_case unquoted, but if you need quoted column names use them consistently in the function body.
 - TVF won't appear in EF migrations automatically — manage it via raw SQL migration or DBA process.
-- `ToFunction(...)` is what binds the keyless entity to the function; without it EF tries to resolve a table named `CustomerSummaryRow`.
 
 ---
 
@@ -460,7 +472,7 @@ Promote `TopCustomersParams` to a real persistent entity. Popup flow unchanged. 
 1. Add `Customer` and `Order` entities + DbSets + decimal precision + `AdditionalExportedTypes`.
 2. Run migration so tables exist.
 3. Seed a handful of customers/orders in `DatabaseUpdate/Updater.cs` (or via the UI).
-4. Add `CustomerSummaryRow` + `HasDbFunction` + `ToFunction` mapping in DbContext.
+4. Add `CustomerSummaryRow` as a plain unmapped POCO + a `GetTopCustomers(...)` method on the DbContext using `Database.SqlQuery<CustomerSummaryRow>($"...")`. (Do **not** use `HasDbFunction` / `Entity<>().HasNoKey().ToFunction(...)` — see §Step 3.)
 5. Create the TVF in the database (raw SQL).
 6. Sanity-check with a quick `ctx.GetTopCustomers(10, DateTime.Today.AddYears(-1)).ToList()` from a controller breakpoint.
 7. Add `CustomerSummary` DTO + `TopCustomersParams` + register both.
