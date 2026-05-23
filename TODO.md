@@ -35,6 +35,14 @@ Stop and report after each non-trivial step so the user can sanity-check.
 
 - **XtraReports report bound to the TVF.** New `TopCustomersReport` (programmatic XtraReport, bands + ExpressionBindings) registered via `PredefinedReportsUpdater` in `XafTVFModule.GetModuleUpdaters`. Parameter object `TopCustomersReportParams : ReportParametersObjectBase` drives the param dialog. `BeforePrint` reads the param object from `Parameters["XafReportParametersObject"].Value` (XAF doesn't auto-bind individual properties by name), borrows the EF Core DbContext via a short-lived persistent ObjectSpace from `XafTVFModule.CurrentApplication`, runs `ctx.GetTopCustomers(TopN, Since)`, and assigns the result to `DataSource`. Report appears under Reports → Reports in the nav. Verified by `TopCustomersReport_PredefinedXtraReport_RendersInPreview`.
 
+## Open items
+
+- [ ] **Perf comparison test.** Validate the README's "order of magnitude" claim. Add a BenchmarkDotNet (or `Stopwatch`-based) project that times three strategies against the same seed for varying TopN values and date windows:
+  1. **TVF path**: `ctx.GetTopCustomers(topN, since).ToList()` — what the spike actually uses.
+  2. **EF-translated LINQ**: `ctx.Customers.Where(c => c.GCRecord == 0).Select(c => new { c.ID, c.Name, Revenue = c.Orders.Where(o => o.OrderDate >= since && o.GCRecord == 0).Sum(o => o.Total), OrderCount = c.Orders.Count(o => o.OrderDate >= since && o.GCRecord == 0) }).OrderByDescending(x => x.Revenue).Take(topN).ToList()` — what a developer might write without thinking about the SQL.
+  3. **Client-side aggregation**: `ctx.Customers.Include(c => c.Orders).Where(...).ToList()` then `.GroupBy/.Sum/.OrderByDescending/.Take` in C# — the "naive XAF" worst case that loads every row.
+  Report wall-clock time + rows-over-the-wire + working-set delta. Reuse the existing seed (no extra setup). Keep results in `docs/perf.md`.
+
 ## Traps to keep in mind
 
 - `CustomerSummaryRow` (EF row) stays out of `AdditionalExportedTypes`.
