@@ -1,0 +1,498 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "mcp-excalidraw-server",
+  "elements": [
+    {
+      "id": "title",
+      "type": "text",
+      "x": 380,
+      "y": 10,
+      "width": 640,
+      "height": 30,
+      "text": "XafTVF — Two paths to the same SQL Table-Valued Function",
+      "fontSize": 22,
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "user",
+      "type": "rectangle",
+      "x": 540,
+      "y": 70,
+      "width": 320,
+      "height": 60,
+      "backgroundColor": "#e0e0e0",
+      "strokeColor": "#424242",
+      "strokeWidth": 2,
+      "label": {
+        "text": "User (Blazor browser)"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "trigger-a",
+      "type": "rectangle",
+      "x": 60,
+      "y": 200,
+      "width": 360,
+      "height": 100,
+      "backgroundColor": "#bbdefb",
+      "strokeColor": "#1565c0",
+      "strokeWidth": 2,
+      "label": {
+        "text": "Tools tab → 'Top Customers Report'\nPopupWindowShowAction\n→ TopCustomersParams popup → Run"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "trigger-b",
+      "type": "rectangle",
+      "x": 980,
+      "y": 200,
+      "width": 360,
+      "height": 100,
+      "backgroundColor": "#c8e6c9",
+      "strokeColor": "#2e7d32",
+      "strokeWidth": 2,
+      "label": {
+        "text": "Reports nav → Reports list view\n→ click 'Top Customers Report' row\n→ TopCustomersReportParams dialog → Preview"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "exec-a",
+      "type": "rectangle",
+      "x": 60,
+      "y": 360,
+      "width": 360,
+      "height": 100,
+      "backgroundColor": "#bbdefb",
+      "strokeColor": "#1565c0",
+      "strokeWidth": 2,
+      "label": {
+        "text": "TopCustomersReportController\nAction_Execute: borrow persistent OS\nfor its DbContext, then dispose"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "exec-b",
+      "type": "rectangle",
+      "x": 980,
+      "y": 360,
+      "width": 360,
+      "height": 100,
+      "backgroundColor": "#c8e6c9",
+      "strokeColor": "#2e7d32",
+      "strokeWidth": 2,
+      "label": {
+        "text": "TopCustomersReport (XtraReport)\nBeforePrint: read params from\nParameters['XafReportParametersObject']"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "dbctx",
+      "type": "rectangle",
+      "x": 440,
+      "y": 520,
+      "width": 560,
+      "height": 110,
+      "backgroundColor": "#fff9c4",
+      "strokeColor": "#f57f17",
+      "strokeWidth": 2,
+      "label": {
+        "text": "XafTVFEFCoreDbContext.GetTopCustomers(topN, since)\nvia Database.SqlQuery<CustomerSummaryRow>\n(POCO not in EF model → XAF accepts it)"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:41:31.862Z",
+      "version": 2
+    },
+    {
+      "id": "tvf",
+      "type": "rectangle",
+      "x": 440,
+      "y": 680,
+      "width": 560,
+      "height": 130,
+      "backgroundColor": "#ffe0b2",
+      "strokeColor": "#e65100",
+      "strokeWidth": 2,
+      "label": {
+        "text": "SQL Server LocalDB\ndbo.get_top_customers(@top_n, @since)\nJOIN Customers ⋈ Orders, GROUP BY, SUM(Total)\nWHERE GCRecord = 0, ORDER BY DESC, TOP N"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:41:33.418Z",
+      "version": 2
+    },
+    {
+      "id": "tables",
+      "type": "rectangle",
+      "x": 440,
+      "y": 860,
+      "width": 560,
+      "height": 60,
+      "backgroundColor": "#fff59d",
+      "strokeColor": "#f9a825",
+      "strokeWidth": 2,
+      "label": {
+        "text": "Customers (~1k rows) + Orders (~60k rows, Bogus seed)"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:41:33.808Z",
+      "version": 2
+    },
+    {
+      "id": "out-a",
+      "type": "rectangle",
+      "x": 60,
+      "y": 980,
+      "width": 360,
+      "height": 110,
+      "backgroundColor": "#bbdefb",
+      "strokeColor": "#1565c0",
+      "strokeWidth": 2,
+      "label": {
+        "text": "Result ListView in new window tab\nNonPersistentObjectSpace + CustomerSummary DTOs\n'Top N customers since YYYY-MM-DD'"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "out-b",
+      "type": "rectangle",
+      "x": 980,
+      "y": 980,
+      "width": 360,
+      "height": 110,
+      "backgroundColor": "#c8e6c9",
+      "strokeColor": "#2e7d32",
+      "strokeWidth": 2,
+      "label": {
+        "text": "Blazor Report Viewer (new tab)\nbands + ExpressionBindings + XRSummary.Sum\nPDF preview"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "drill",
+      "type": "rectangle",
+      "x": 60,
+      "y": 1140,
+      "width": 360,
+      "height": 100,
+      "backgroundColor": "#e1bee7",
+      "strokeColor": "#6a1b9a",
+      "strokeWidth": 2,
+      "label": {
+        "text": "Customer DetailView (persistent)\nOpen Customer icon OR row click\n(CustomProcessSelectedItem intercepts, avoids err 1057)"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35otje8vsfe7bg",
+      "type": "arrow",
+      "x": 600.3941612841481,
+      "y": 132.48016479864734,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -199.45498923496297,
+          65.03967040270533
+        ]
+      ],
+      "start": {
+        "id": "user"
+      },
+      "end": {
+        "id": "trigger-a"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35ojhpp9944vrk",
+      "type": "arrow",
+      "x": 799.6058387158519,
+      "y": 132.48016479864734,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          199.4549892349629,
+          65.03967040270533
+        ]
+      ],
+      "start": {
+        "id": "user"
+      },
+      "end": {
+        "id": "trigger-b"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35oar5zy5n1vq8",
+      "type": "arrow",
+      "x": 240,
+      "y": 308,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          44
+        ]
+      ],
+      "start": {
+        "id": "trigger-a"
+      },
+      "end": {
+        "id": "exec-a"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35oxmlq07s6tjh",
+      "type": "arrow",
+      "x": 1160,
+      "y": 308,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          44
+        ]
+      ],
+      "start": {
+        "id": "trigger-b"
+      },
+      "end": {
+        "id": "exec-b"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35ov5kmc0otp7o",
+      "type": "arrow",
+      "x": 393.0200382489844,
+      "y": 462.60063814808836,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          159.41446895657668,
+          54.79872370382327
+        ]
+      ],
+      "start": {
+        "id": "exec-a"
+      },
+      "end": {
+        "id": "dbctx"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35omlodw0qm8t",
+      "type": "arrow",
+      "x": 1019.1760332461143,
+      "y": 462.80898753270714,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -145.0187331588952,
+          54.382024934585786
+        ]
+      ],
+      "start": {
+        "id": "exec-b"
+      },
+      "end": {
+        "id": "dbctx"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35ogroqmufzf0k",
+      "type": "arrow",
+      "x": 720,
+      "y": 638,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          34
+        ]
+      ],
+      "start": {
+        "id": "dbctx"
+      },
+      "end": {
+        "id": "tvf"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35omfg6q8vn63k",
+      "type": "arrow",
+      "x": 720,
+      "y": 818,
+      "strokeWidth": 2,
+      "strokeStyle": "dashed",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          34
+        ]
+      ],
+      "start": {
+        "id": "tvf"
+      },
+      "end": {
+        "id": "tables"
+      },
+      "createdAt": "2026-05-23T07:39:49.901Z",
+      "updatedAt": "2026-05-23T07:39:49.901Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35ow01a67gaucp",
+      "type": "arrow",
+      "x": 605.566468767882,
+      "y": 814.1369251194046,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -267.684661673695,
+          161.72614976119075
+        ]
+      ],
+      "start": {
+        "id": "tvf"
+      },
+      "end": {
+        "id": "out-a"
+      },
+      "createdAt": "2026-05-23T07:39:49.902Z",
+      "updatedAt": "2026-05-23T07:39:49.902Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35o5u7ycp1rktf",
+      "type": "arrow",
+      "x": 825.3003552921072,
+      "y": 814.4025068970706,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          244.5717032088893,
+          161.19498620585887
+        ]
+      ],
+      "start": {
+        "id": "tvf"
+      },
+      "end": {
+        "id": "out-b"
+      },
+      "createdAt": "2026-05-23T07:39:49.902Z",
+      "updatedAt": "2026-05-23T07:39:49.902Z",
+      "version": 1
+    },
+    {
+      "id": "mpi1g35o10lqgqowe6wl",
+      "type": "arrow",
+      "x": 240,
+      "y": 1098,
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          34
+        ]
+      ],
+      "start": {
+        "id": "out-a"
+      },
+      "end": {
+        "id": "drill"
+      },
+      "createdAt": "2026-05-23T07:39:49.902Z",
+      "updatedAt": "2026-05-23T07:39:49.902Z",
+      "version": 1
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  }
+}
