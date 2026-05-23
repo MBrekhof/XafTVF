@@ -1,40 +1,52 @@
 # Session handoff
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-05-23 (end of build session)
 
-## Where things are
+## Status
 
-TVF spike is **end-to-end working** — login → Tools tab → Top Customers Report popup → fill TopN/Since → SQL TVF executes → result list with `CustomerSummary` DTOs in a new tab → per-row drill-through to the real persistent `Customer` DetailView with its `Orders` collection.
+Spike is **complete and public** at <https://github.com/MBrekhof/XafTVF>. Both TVF flows work end-to-end and have automated coverage. Latest commit on `main`: `4a2eec9`.
 
-Verified via Playwright (`test-artifacts/verify_tvf.py`, screenshots `01_*` through `08_*`).
+## What works
 
-### Steps complete (TODO.md)
+- **In-app popup flow** (`Tools → Top Customers Report → fill params → Run → result list → drill-through to Customer DetailView`). Row click on a result row is intercepted via `ListViewProcessCurrentObjectController.CustomProcessSelectedItem` so the non-persistent CustomerSummary doesn't trip XAF error 1057.
+- **Predefined XtraReports flow** (`Reports → Reports → Top Customers Report → param dialog → Preview`). The XtraReport reads its params from `Parameters["XafReportParametersObject"].Value` (XAF passes the whole `ReportParametersObjectBase` as a single hidden parameter) and binds the TVF result to `DataSource`.
+- **Bogus seeder** (~1k customers / ~60k orders, idempotent). `dbo.get_top_customers` recreated via `CREATE OR ALTER` on every `--updateDatabase`.
+- **3 C# Playwright tests** (`XafTVF.UITests` — `Microsoft.Playwright.Xunit`), all green when run together:
+  1. `TopCustomersReport_RunsAndDrillsThroughViaIcon`
+  2. `TopCustomersReport_RowClickIsInterceptedAndDrillsThrough`
+  3. `TopCustomersReport_PredefinedXtraReport_RendersInPreview`
+- **README + architecture diagram** at `docs/architecture.png` (editable source at `docs/architecture.excalidraw`).
 
-- Infrastructure (md files, DB created, app boots)
-- **1.** `Customer` + `Order` entities, DbContext, AdditionalExportedTypes
-- **2.** Tables migrated (Customers, Orders with FK, decimal(18,2), GCRecord, OptimisticLockField)
-- **3.** Bogus seeder: 1,000 customers, 59,484 orders, idempotent
-- **4.** `CustomerSummaryRow` via `Database.SqlQuery<T>` (deviation from TVF_PLAN.md §Step 3 — see memory)
-- **5.** `dbo.get_top_customers` created by `EnsureTvfExists()` (CREATE OR ALTER, GCRecord=0 filter)
-- **6.** Sanity-check passed (temp diagnostic removed)
-- **7.** `CustomerSummary` + `TopCustomersParams` DTOs (`[DomainComponent]` + `NonPersistentBaseObject`)
-- **8.** `TopCustomersReportController` + `CustomerSummaryDrillThroughController`
-- **9.** UI verified end-to-end. Two XAF Blazor deviations from TVF_PLAN.md applied — see TODO.md.
+## Open items (TODO.md "Open items" section)
 
-### Steps remaining
+- [ ] **Perf comparison test** — benchmark TVF vs EF-translated LINQ vs client-side aggregation over the existing seed, write results to `docs/perf.md`. This validates the README's "order of magnitude" claim.
+- [ ] *(Optional, step 10)* — Variation A: inline params + results (no popup) — see TVF_PLAN.md §Variations.
 
-- **10.** *(Optional)* Variation A: inline params + results (no popup) — TVF_PLAN.md §Variations.
+## Recent commits (newest first)
 
-## XAF Blazor gotchas captured this session
+```
+4a2eec9 TODO: add perf comparison test for TVF vs LINQ vs client-side
+1a4e418 README: add 'Why this exists' section
+ffc8070 Add README with architecture diagram
+7445277 Add Top Customers XtraReport (predefined, bound to the TVF)
+7404f2e Intercept CustomerSummary row-click to avoid XAF error 1057
+2ae4b30 Add C# Playwright xUnit harness for the TVF spike
+3d91d78 Implement TVF → NonPersistentObject XAF spike end-to-end
+9b570d9 Initial commit: XAF TVF spike scaffolding
+```
 
-Memory entries (`~/.claude/projects/C--Projects-XafTVF/memory/`):
+## Memory updates this session
 
-- `xaf-efcore-bulk-seed.md` — `ctx.CreateProxy<T>()` required for bulk-insert of XAF EF Core entities.
-- `xaf-tvf-row-mapping.md` — use `Database.SqlQuery<T>` for TVFs; `HasDbFunction` / `HasNoKey().ToFunction(...)` breaks XAF.
-- `xaf-blazor-action-categories.md` — `"View"` category folds into Navigation dropdown; use `PredefinedCategory.RecordEdit` for per-row drill-through.
-- `xaf-blazor-popup-result-window.md` — use `TargetWindow.NewWindow` (not `NewModalWindow`/`Default`) from a `PopupWindowShowAction.Execute`.
+Captured in `~/.claude/projects/C--Projects-XafTVF/memory/`:
 
-`TVF_PLAN.md` §Step 3 + Gotchas were amended for the `Database.SqlQuery<T>` deviation. The controller code in §Step 6/§Step 7 still shows `NewModalWindow` and `"View"` category — those are unchanged in the plan, but the actual checked-in controllers use `NewWindow` and `PredefinedCategory.RecordEdit` (the working choices).
+- `xaf-efcore-bulk-seed.md` — use `ctx.CreateProxy<T>()` in Bogus `CustomInstantiator`; `new T()` trips `INotifyPropertyChanging`.
+- `xaf-tvf-row-mapping.md` — query TVFs via `Database.SqlQuery<T>($"...")`; canonical `HasDbFunction` + `HasNoKey().ToFunction(...)` is rejected by XAF's DBUpdater.
+- `xaf-blazor-action-categories.md` — use `PredefinedCategory.RecordEdit` for per-row drill-through icons (XAF Blazor folds `"View"` into a Navigation dropdown).
+- `xaf-blazor-popup-result-window.md` — from `PopupWindowShowAction.Execute`, use `TargetWindow.NewWindow` (NOT `NewModalWindow`/`Default`).
+- `xaf-nonpersistent-row-click.md` — intercept row-click error 1057 via `ListViewProcessCurrentObjectController.CustomProcessSelectedItem`.
+- `xaf-reportsv2-param-object.md` — read params from `Parameters["XafReportParametersObject"].Value`, XAF doesn't auto-bind individual properties.
+- `xaf-blazor-url-routing.md` — `https://host/<ViewId>` (e.g. `/ReportDataV2_ListView`) for deterministic test navigation.
+- `prefer-csharp.md` — new tests/scripts/tooling go in C#; existing `verify_tvf.py` stays but isn't extended.
 
 ## Useful commands
 
@@ -48,15 +60,13 @@ dotnet run --project XafTVF\XafTVF.Blazor.Server -- --updateDatabase --forceUpda
 # run Blazor host
 dotnet run --project XafTVF\XafTVF.Blazor.Server
 
-# end-to-end UI verification (start server in background first)
-python test-artifacts\verify_tvf.py
+# UI tests (Blazor must be running)
+dotnet test XafTVF\XafTVF.UITests\XafTVF.UITests.csproj
 
-# inspect TVF result via raw SQL
+# inspect TVF via raw SQL
 sqlcmd -S "(localdb)\mssqllocaldb" -d XafTVF -Q "SELECT * FROM dbo.get_top_customers(5, '2023-01-01')"
 ```
 
-## Next action
+## Heads up for deployment
 
-Either:
-- Implement step 10 (inline-params variant) — straightforward DetailView controller change on `TopCustomersParams`, drop the popup.
-- Or call the spike done and capture polish items (hide `Customer Summary` from main nav, sort result list by Revenue desc, hide the noisy `Customer Id` GUID column).
+`appsettings.json` carries the default DevExpress scaffolding `UrlSigningKey` (`64D0D174-387C-4836-9509-03B271E03496`). Sandbox-fine, but rotate via user secrets / env if this ever gets deployed.
