@@ -7,4 +7,5 @@
   <Project Path="XafTVF/XafTVF.Blazor.Server/XafTVF.Blazor.Server.csproj" />
   <Project Path="XafTVF/XafTVF.Module/XafTVF.Module.csproj" />
   <Project Path="XafTVF/XafTVF.Win/XafTVF.Win.csproj" />
+  <Project Path="XafTVF/XafTVF.UITests/XafTVF.UITests.csproj" />
 </Solution>

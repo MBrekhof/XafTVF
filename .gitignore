@@ -488,3 +488,4 @@ CLAUDE.local.md
 
 # Playwright test artifacts (regenerated each run)
 test-artifacts/*.png
+XafTVF/XafTVF.UITests/artifacts/
