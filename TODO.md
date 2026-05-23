@@ -31,6 +31,10 @@ Stop and report after each non-trivial step so the user can sanity-check.
 
 - **Row-click on `CustomerSummary` no longer throws XAF error 1057.** `CustomerSummaryDrillThroughController.OnActivated` hooks `ListViewProcessCurrentObjectController.CustomProcessSelectedItem`, sets `e.Handled = true`, and reuses the same "open Customer DetailView" logic as the per-row icon. Verified by a second C# Playwright test case (`TopCustomersReport_RowClickIsInterceptedAndDrillsThrough`).
 
+## Extras
+
+- **XtraReports report bound to the TVF.** New `TopCustomersReport` (programmatic XtraReport, bands + ExpressionBindings) registered via `PredefinedReportsUpdater` in `XafTVFModule.GetModuleUpdaters`. Parameter object `TopCustomersReportParams : ReportParametersObjectBase` drives the param dialog. `BeforePrint` reads the param object from `Parameters["XafReportParametersObject"].Value` (XAF doesn't auto-bind individual properties by name), borrows the EF Core DbContext via a short-lived persistent ObjectSpace from `XafTVFModule.CurrentApplication`, runs `ctx.GetTopCustomers(TopN, Since)`, and assigns the result to `DataSource`. Report appears under Reports → Reports in the nav. Verified by `TopCustomersReport_PredefinedXtraReport_RendersInPreview`.
+
 ## Traps to keep in mind
 
 - `CustomerSummaryRow` (EF row) stays out of `AdditionalExportedTypes`.

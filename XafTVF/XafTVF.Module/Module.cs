@@ -42,16 +42,32 @@ namespace XafTVF.Module
             AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.Order));
             AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.CustomerSummary));
             AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.TopCustomersParams));
+            AdditionalExportedTypes.Add(typeof(XafTVF.Module.BusinessObjects.TopCustomersReportParams));
         }
+
+        // Set in Setup(XafApplication). Used by TopCustomersReport.BeforePrint to grab the
+        // EF Core DbContext without resorting to a service-locator antipattern at every call site.
+        // XtraReport instances aren't created via DI so they can't take XafApplication as a ctor arg.
+        public static XafApplication? CurrentApplication { get; private set; }
+
         public override IEnumerable<ModuleUpdater> GetModuleUpdaters(IObjectSpace objectSpace, Version versionFromDB)
         {
             ModuleUpdater updater = new DatabaseUpdate.Updater(objectSpace, versionFromDB);
-            return new ModuleUpdater[] { updater };
+
+            // Register the Top Customers Report so it shows up under the Reports navigation.
+            // Stores a ReportDataV2 record on first --updateDatabase after the type is added.
+            var reportsUpdater = new PredefinedReportsUpdater(Application, objectSpace, versionFromDB);
+            reportsUpdater.AddPredefinedReport<XafTVF.Module.Reports.TopCustomersReport>(
+                "Top Customers Report",
+                typeof(XafTVF.Module.BusinessObjects.CustomerSummary),
+                typeof(XafTVF.Module.BusinessObjects.TopCustomersReportParams));
+
+            return new ModuleUpdater[] { updater, reportsUpdater };
         }
         public override void Setup(XafApplication application)
         {
             base.Setup(application);
-            // Manage various aspects of the application UI and behavior at the module level.
+            CurrentApplication = application;
         }
         public override void Setup(ApplicationModulesManager moduleManager)
         {
