@@ -21,15 +21,30 @@ public class TopCustomersReportTests : PageTest
     };
 
     [Fact]
-    public async Task TopCustomersReport_RunsAndDrillsThrough()
+    public async Task TopCustomersReport_RunsAndDrillsThroughViaIcon()
+        => await RunReportAndDrillThrough(useRowClick: false, screenshotPrefix: "icon");
+
+    [Fact]
+    public async Task TopCustomersReport_RowClickIsInterceptedAndDrillsThrough()
+        => await RunReportAndDrillThrough(useRowClick: true, screenshotPrefix: "rowclick");
+
+    private async Task RunReportAndDrillThrough(bool useRowClick, string screenshotPrefix)
     {
         Directory.CreateDirectory(ArtifactsDir);
         Page.SetDefaultTimeout(20_000);
 
+        // Track XAF console-surfaced errors so we catch the "1057" message even if it doesn't
+        // throw at the Playwright layer.
+        var consoleErrors = new List<string>();
+        Page.Console += (_, msg) =>
+        {
+            if (msg.Type == "error") consoleErrors.Add(msg.Text);
+        };
+
         // ---------- LANDING / LOGIN ----------
         await Page.GotoAsync(BaseUrl, new() { WaitUntil = WaitUntilState.DOMContentLoaded });
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Shoot("01_landing");
+        await Shoot($"{screenshotPrefix}_01_landing");
 
         await Page.GetByLabel("User Name").FillAsync("Admin");
         await Page.WaitForTimeoutAsync(300);
@@ -40,12 +55,11 @@ public class TopCustomersReportTests : PageTest
         await toolsTab.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15_000 });
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Page.WaitForTimeoutAsync(1500);
-        await Shoot("02_after_login");
+        await Shoot($"{screenshotPrefix}_02_after_login");
 
         // ---------- OPEN THE TOOLS TAB ----------
         await toolsTab.ClickAsync();
         await Page.WaitForTimeoutAsync(800);
-        await Shoot("03_tools_tab");
 
         // ---------- CLICK 'Top Customers Report' ----------
         var actionTrigger = Page.GetByText("Top Customers Report", new() { Exact = true }).First;
@@ -53,48 +67,59 @@ public class TopCustomersReportTests : PageTest
         await actionTrigger.ClickAsync();
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Page.WaitForTimeoutAsync(2000);
-        await Shoot("04_popup_open");
 
         // ---------- FILL TopN=5, RUN ----------
         await Page.GetByLabel("Top N").FillAsync("5");
-        await Shoot("05_params_filled");
-
         await Page.GetByRole(AriaRole.Button, new() { Name = "Run" }).ClickAsync();
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Page.WaitForTimeoutAsync(2000);
-        await Shoot("06_result_list");
+        await Shoot($"{screenshotPrefix}_06_result_list");
 
         // ---------- VERIFY RESULT LIST ----------
         var caption = Page.GetByText("Top 5 customers since", new() { Exact = false }).First;
         await caption.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 5_000 });
 
-        // Count data rows (skip header).
         var rowCount = await Page.Locator(".dxbl-grid tr[role='row']:not(.dxbl-grid-header-row)").CountAsync();
         Assert.True(rowCount >= 5, $"Expected at least 5 result rows; saw {rowCount}");
 
         // ---------- DRILL THROUGH ----------
-        // 'Open Customer' renders as visible per-row buttons (RecordEdit category). The action's
-        // SelectionDependencyType.RequireSingleObject means clicking the icon both selects the row
-        // and fires the handler. Avoid the hidden toolbar instance by requiring :visible.
-        var rowActions = Page.Locator("button[data-action-name='Open Customer']:visible");
-        var visibleCount = await rowActions.CountAsync();
-        Assert.True(
-            visibleCount >= 5,
-            $"Expected 5 visible 'Open Customer' row buttons (one per row); saw {visibleCount}"
-        );
-
-        await rowActions.First.ClickAsync();
+        if (useRowClick)
+        {
+            // Click directly on the row's Name cell text — this fires
+            // ListViewProcessCurrentObjectController.ProcessCurrentObjectAction, which without
+            // our interception would throw XAF error 1057 (non-persistent record can't be
+            // opened as DetailView).
+            var rowName = Page.Locator(
+                ".dxbl-grid tbody tr:not([dxbl-top-virtual-spacer-element]):not([dxbl-bottom-virtual-spacer-element])"
+            ).Filter(new() { Has = Page.Locator("button[data-action-name='Open Customer']") }).First;
+            await rowName.ClickAsync();
+        }
+        else
+        {
+            // Click the per-row icon (RecordEdit category, SelectionDependencyType.RequireSingleObject).
+            var rowActions = Page.Locator("button[data-action-name='Open Customer']:visible");
+            var visibleCount = await rowActions.CountAsync();
+            Assert.True(
+                visibleCount >= 5,
+                $"Expected 5 visible 'Open Customer' row buttons; saw {visibleCount}"
+            );
+            await rowActions.First.ClickAsync();
+        }
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Page.WaitForTimeoutAsync(2000);
-        await Shoot("08_customer_detail");
+        await Shoot($"{screenshotPrefix}_08_customer_detail");
 
         // ---------- ASSERT CUSTOMER DETAIL VIEW ----------
-        // The drill-through opens a persistent Customer DetailView. Verify by the presence of
-        // the Name editor label + the Orders collection's column headers.
         var bodyText = await Page.Locator("body").InnerTextAsync();
+        Assert.DoesNotContain("1057", bodyText);
+        Assert.DoesNotContain("newly created record cannot be shown", bodyText);
         Assert.Contains("Order Date", bodyText);
         Assert.Contains("Total", bodyText);
         Assert.Contains("Name", bodyText);
+
+        // Sanity: no XAF "error N has occurred" console output during the flow.
+        var xafErrors = consoleErrors.FindAll(m => m.Contains("error with number") || m.Contains("1057"));
+        Assert.Empty(xafErrors);
     }
 
     private async Task Shoot(string name)

@@ -27,6 +27,10 @@ Stop and report after each non-trivial step so the user can sanity-check.
   - **Drill-through action category "View" → `PredefinedCategory.RecordEdit`** in `CustomerSummaryDrillThroughController`. In XAF Blazor the "View" category folds into a "Navigation" dropdown that holds the navigation tree, not list actions. `RecordEdit` renders the action as inline per-row icons next to each list item (the canonical XAF Blazor drill-through pattern).
 - [ ] **10.** *(Optional)* Convert to Variation A: inline params + results (no popup).
 
+## Polish applied post-spike
+
+- **Row-click on `CustomerSummary` no longer throws XAF error 1057.** `CustomerSummaryDrillThroughController.OnActivated` hooks `ListViewProcessCurrentObjectController.CustomProcessSelectedItem`, sets `e.Handled = true`, and reuses the same "open Customer DetailView" logic as the per-row icon. Verified by a second C# Playwright test case (`TopCustomersReport_RowClickIsInterceptedAndDrillsThrough`).
+
 ## Traps to keep in mind
 
 - `CustomerSummaryRow` (EF row) stays out of `AdditionalExportedTypes`.
